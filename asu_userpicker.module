@@ -29,8 +29,9 @@ define("ASU_USERPICKER_REFERENCEABLE_STATUS", variable_get('asu_userpicker_refer
     ))));
 define("ASU_USERPICKER_REFERENCEABLE_VIEW", variable_get('asu_userpicker_referenceables_view', ''));
 define("ASU_USERPICKER_LABEL", variable_get('asu_userpicker_label', 'USER'));
-// Note, also, optional setting:
-// variable_get('asu_userpicker_search_user_fields', array());
+// Note, also, optional settings to set programmatically:
+// variable_set('asu_userpicker_search_user_fields', array('field_first_name', 'field_last_name', 'another_field_machine_name'));
+// variable_get('asu_userpicker_search_ldap_filters', array('asuriteid', 'cn', 'mail'));
 
 /*********************************************************************
   DRUPAL HOOKS
@@ -160,23 +161,30 @@ function asu_userpicker_autocomplete($string) {
   // 2. Check LDAP for asurite matches.
   // 3. Remove dupes and display.
 
-  // LOCAL SEARCH
-
-  $local_results = asu_userpicker_search_local($string);
-
   $items = array();
 
-  foreach ($local_results as $local_result) {
-    // This is the cas_name/asurite ID.
-    // We need to save on drupal users names.
-    // We just force all usernames to be the same as ASURITE IDs.
-    $items[$local_result->name] = 'Existing user : ' . check_plain($local_result->cas_name . ' : <' . check_plain($local_result->mail) . '>');
+  // LOCAL SEARCH
+
+  // Make local search optional. In some cases may not be wanted. In others may
+  // cause performance issues.
+  $do_local_search = variable_get('asu_userpicker_do_local_search', FALSE);
+  if ($do_local_search) {
+
+    $local_results = asu_userpicker_search_local($string);
+
+    foreach ($local_results as $local_result) {
+      // This is the cas_name/asurite ID.
+      // We need to save on drupal users names.
+      // We just force all usernames to be the same as ASURITE IDs.
+      $items[$local_result->name] = 'Existing user : ' . check_plain($local_result->cas_name . ' : <' . check_plain($local_result->mail) . '>');
+    }
   }
 
   // LDAP Search 
 
   // Query LDAP on ASURITE ID and common name / full name.
-  $search_results = asu_userpicker_search_ldap($string, $filters = array('asuriteid', 'cn'));
+  $filters = variable_get('asu_userpicker_search_ldap_filters', array('asuriteid', 'cn', 'mail'));
+  $search_results = asu_userpicker_search_ldap($string, $filters);
 
   // Add non-existing users to our list
   foreach ($search_results as $search_result) {
@@ -186,6 +194,7 @@ function asu_userpicker_autocomplete($string) {
   }
 
   print drupal_json_output($items);
+
   exit();
 }
 
